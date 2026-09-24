@@ -1,0 +1,20 @@
+from .entity_service import (
+    get_all_hospitals,
+    create_hospital,
+    get_all_users,
+    create_user,
+    get_all_resources,
+    create_resource,
+    get_all_inventory,
+    create_inventory,
+    get_all_batches,
+    create_batch,
+    get_all_consumption,
+    create_consumption,
+    get_all_suppliers,
+    create_supplier,
+    get_all_equipment,
+    create_equipment,
+    get_all_maintenance_records,
+    create_maintenance_record
+)
