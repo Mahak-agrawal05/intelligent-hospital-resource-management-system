@@ -9,16 +9,26 @@ def calculate_shortage_risk(
     predicted demand, supplier lead time and safety stock.
     """
 
+    # Validate inputs
+    if current_stock < 0:
+        raise ValueError("Current usable stock cannot be negative.")
+
+    if predicted_daily_demand < 0:
+        raise ValueError("Predicted daily demand cannot be negative.")
+
+    if lead_time_days < 0 or safety_stock < 0:
+        raise ValueError("Lead time and safety stock cannot be negative.")
+
     # Expected consumption during supplier lead time
     lead_time_demand = predicted_daily_demand * lead_time_days
 
-    # Stock required to survive lead time while maintaining safety stock
+    # Stock required during lead time plus safety stock
     required_stock = lead_time_demand + safety_stock
 
-    # Difference between available stock and required stock
+    # Difference between available and required stock
     stock_gap = current_stock - required_stock
 
-    # Estimate how many days the current stock can support
+    # Days current stock can support demand
     if predicted_daily_demand > 0:
         days_of_stock = current_stock / predicted_daily_demand
     else:
@@ -27,13 +37,10 @@ def calculate_shortage_risk(
     # Determine risk level
     if current_stock <= safety_stock:
         risk_level = "CRITICAL"
-
     elif current_stock < required_stock:
         risk_level = "HIGH"
-
     elif current_stock < required_stock * 1.25:
         risk_level = "MEDIUM"
-
     else:
         risk_level = "LOW"
 

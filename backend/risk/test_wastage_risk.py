@@ -1,4 +1,4 @@
-from wastage_risk import calculate_wastage_risk
+from .wastage_risk import calculate_wastage_risk
 
 
 def test_wastage_risk():

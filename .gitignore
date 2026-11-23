@@ -1,4 +1,42 @@
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
 venv/
+.venv/
+
+# Environment variables and secrets
 .env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+frontend/dist/
+frontend/build/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+
+# Backup files
+*_backup.py
+*.bak
+
+# Sensitive local admin scripts
+backend/create_central_admin.py
+backend/create_metro_admin.py
+backend/reset_admin_password.py
+
+# Backups
+backend/main_backup_before_fefo.py
+backend/services/entity_service_backup.py
+
+# Local test authentication
+backend/test_auth.py

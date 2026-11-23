@@ -7,7 +7,8 @@ from sqlalchemy import (
     Numeric,
     Text,
     Float,
-    ForeignKey
+    ForeignKey,
+    Boolean
 )
 
 from datetime import datetime
@@ -27,6 +28,13 @@ class Hospital(Base):
         Integer,
         primary_key=True,
         index=True
+    )
+
+    is_active = Column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true"
     )
 
     hospital_name = Column(
@@ -86,6 +94,13 @@ class User(Base):
         nullable=False
     )
 
+    is_active = Column(
+    Boolean,
+    nullable=False,
+    default=True,
+    server_default="true"
+    )
+
 
 # =========================================================
 # 3. RESOURCE
@@ -138,6 +153,14 @@ class Resource(Base):
     )
 
 
+    criticality = Column(
+        String,
+        nullable=False,
+        default="MEDIUM",
+        server_default="MEDIUM"
+    )
+
+
 # =========================================================
 # 4. INVENTORY
 # =========================================================
@@ -160,10 +183,10 @@ class Inventory(Base):
     )
 
     resource_id = Column(
-        Integer,
-        ForeignKey("resources.resource_id"),
-        nullable=False
-    )
+    Integer,
+    ForeignKey("resources.resource_id"),
+    nullable=True
+)
 
     current_quantity = Column(
         Integer,
@@ -216,6 +239,12 @@ class ResourceBatch(Base):
         nullable=False
     )
 
+    reserved_quantity = Column(
+    Integer,
+    nullable=False,
+    default=0
+    )
+
     manufacturing_date = Column(
         Date,
         nullable=True
@@ -253,10 +282,10 @@ class ConsumptionHistory(Base):
     )
 
     resource_id = Column(
-        Integer,
-        ForeignKey("resources.resource_id"),
-        nullable=False
-    )
+    Integer,
+    ForeignKey("resources.resource_id"),
+    nullable=True
+)
 
     consumption_date = Column(
         Date,
@@ -296,6 +325,11 @@ class Equipment(Base):
     equipment_name = Column(String, nullable=False)
     equipment_type = Column(String, nullable=False)
     status = Column(String, nullable=False)
+    criticality = Column(
+    String,
+    nullable=False,
+    default="MEDIUM"
+    )
     manufacturer = Column(String, nullable=True)
     model_number = Column(String, nullable=True)
     installation_date = Column(Date, nullable=True)
@@ -369,10 +403,10 @@ class DemandPrediction(Base):
     )
 
     resource_id = Column(
-        Integer,
-        ForeignKey("resources.resource_id"),
-        nullable=False
-    )
+    Integer,
+    ForeignKey("resources.resource_id"),
+    nullable=True
+)
 
     prediction_date = Column(
         Date,
@@ -405,10 +439,10 @@ class RiskAnalysis(Base):
         nullable=False
     )
     resource_id = Column(
-        Integer,
-        ForeignKey("resources.resource_id"),
-        nullable=False
-    )
+    Integer,
+    ForeignKey("resources.resource_id"),
+    nullable=True
+)
 
     analysis_date = Column(Date, nullable=False)
 
@@ -423,33 +457,11 @@ class RiskAnalysis(Base):
 class Recommendation(Base):
     __tablename__ = "recommendations"
 
-    recommendation_id = Column(
-        Integer,
-        primary_key=True,
-        index=True
-    )
-
-    hospital_id = Column(
-        Integer,
-        ForeignKey("hospitals.hospital_id"),
-        nullable=False
-    )
-
-    resource_id = Column(
-        Integer,
-        ForeignKey("resources.resource_id"),
-        nullable=False
-    )
-
-    recommendation_type = Column(
-        String,
-        nullable=False
-    )
-
-    recommended_quantity = Column(
-        Float,
-        nullable=False
-    )
+    recommendation_id = Column(Integer, primary_key=True, index=True)
+    hospital_id = Column(Integer, ForeignKey("hospitals.hospital_id"), nullable=False)
+    resource_id = Column(Integer, ForeignKey("resources.resource_id"), nullable=True)
+    recommendation_type = Column(String, nullable=False)
+    recommended_quantity = Column(Float, nullable=False)
 
     source_hospital_id = Column(
         Integer,
@@ -463,16 +475,21 @@ class Recommendation(Base):
         nullable=True
     )
 
-    reason = Column(
-        String,
+    equipment_id = Column(
+        Integer,
+        ForeignKey("equipment.equipment_id"),
         nullable=True
     )
 
-    status = Column(
-        String,
-        nullable=False,
-        default="PENDING"
+    reason = Column(String, nullable=True)
+
+    rejection_reason = Column(
+        Text,
+        nullable=True
     )
+    priority = Column(String, nullable=True)
+
+    status = Column(String, nullable=False, default="PENDING")
 
     created_at = Column(
         DateTime,

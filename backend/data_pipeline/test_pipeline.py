@@ -1,6 +1,5 @@
-from cleaning import clean_inventory_data
-from feature_engineering import create_features
-
+from .cleaning import clean_inventory_data
+from .feature_engineering import create_features
 
 RAW_FILE = "../data/raw/hospital_resource_data.csv"
 

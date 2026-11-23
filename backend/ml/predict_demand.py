@@ -1,168 +1,233 @@
-import pandas as pd
-import joblib
 
+from datetime import date
+from pathlib import Path
+
+import joblib
+import numpy as np
+import pandas as pd
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
 from models.entities import DemandPrediction
 
 
-DATA_FILE = "../data/processed/hospital_resource_features.csv"
-MODEL_FILE = "forecasting_model.pkl"
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+DATA_FILE = (
+    BASE_DIR
+    / "data"
+    / "processed"
+    / "hospital_resource_consumption.csv"
+)
+
+MODEL_FILE = (
+    BASE_DIR
+    / "ml"
+    / "artifacts"
+    / "forecasting_model.pkl"
+)
+
+FORECAST_DAYS = 30
 
 
-def prepare_latest_features(df):
+def generate_future_features(
+    history,
+    hospital_id,
+    resource_id,
+    forecast_date,
+    time_index
+):
+    values = np.asarray(history, dtype=float)
 
-    df = df.copy()
+    return {
+        "hospital_id": hospital_id,
+        "resource_id": resource_id,
+        "lag_1": values[-1],
+        "lag_2": values[-2],
+        "lag_3": values[-3],
+        "lag_7": values[-7],
+        "rolling_mean_7": np.mean(values[-7:]),
+        "rolling_mean_30": np.mean(values[-30:]),
+        "rolling_std_7": np.std(values[-7:], ddof=1),
+        "day_of_week": forecast_date.dayofweek,
+        "day_of_month": forecast_date.day,
+        "month": forecast_date.month,
+        "time_index": time_index
+    }
 
-    df["date"] = pd.to_datetime(df["date"])
 
-    df = df.sort_values(
-        by=["hospital_id", "resource_id", "date"]
+def generate_forecasts(model_package, data):
+
+    model = model_package["model"]
+    features = model_package["features"]
+    model_name = model_package["model_name"]
+
+    data["date"] = pd.to_datetime(data["date"])
+
+    data = data.sort_values(
+        ["hospital_id", "resource_id", "date"]
     )
 
-    group = df.groupby(
+    predictions = []
+
+    groups = data.groupby(
         ["hospital_id", "resource_id"]
     )
 
-    df["lag_1"] = group["quantity_consumed"].shift(1)
-    df["lag_2"] = group["quantity_consumed"].shift(2)
-    df["lag_3"] = group["quantity_consumed"].shift(3)
-    df["lag_7"] = group["quantity_consumed"].shift(7)
+    for (hospital_id, resource_id), group in groups:
 
-    df["rolling_mean_7"] = (
-        group["quantity_consumed"]
-        .transform(
-            lambda x: x.shift(1).rolling(
-                7,
-                min_periods=3
-            ).mean()
+        group = group.sort_values("date")
+
+        history = group["quantity_consumed"].astype(float).tolist()
+
+        if len(history) < 30:
+            print(
+                f"Skipping Hospital {hospital_id}, "
+                f"Resource {resource_id}: insufficient history."
+            )
+            continue
+
+        last_date = group["date"].iloc[-1]
+
+        forecast_start = max(
+            last_date + pd.Timedelta(days=1),
+            pd.Timestamp.today().normalize()
         )
-    )
 
-    df["rolling_std_7"] = (
-        group["quantity_consumed"]
-        .transform(
-            lambda x: x.shift(1).rolling(
-                7,
-                min_periods=3
-            ).std()
-        )
-    )
+        time_index = len(group)
 
-    df["day_of_week"] = df["date"].dt.dayofweek
-    df["day_of_month"] = df["date"].dt.day
-    df["month"] = df["date"].dt.month
+        for day in range(FORECAST_DAYS):
 
-    df["time_index"] = (
-        df.groupby(
-            ["hospital_id", "resource_id"]
-        ).cumcount()
-    )
+            forecast_date = forecast_start + pd.Timedelta(days=day)
 
-    return df
+            row = generate_future_features(
+                history=history,
+                hospital_id=int(hospital_id),
+                resource_id=int(resource_id),
+                forecast_date=forecast_date,
+                time_index=time_index
+            )
+
+            input_df = pd.DataFrame(
+                [row],
+                columns=features
+            )
+
+            predicted_value = float(
+                model.predict(input_df)[0]
+            )
+
+            predicted_value = max(0.0, predicted_value)
+
+            predictions.append({
+                "hospital_id": int(hospital_id),
+                "resource_id": int(resource_id),
+                "forecast_date": forecast_date.date(),
+                "predicted_quantity": predicted_value,
+                "model_name": model_name
+            })
+
+            # Use the predicted value to forecast the next day.
+            history.append(predicted_value)
+            time_index += 1
+
+    return predictions
 
 
 def save_predictions(predictions, db: Session):
 
-    for prediction in predictions:
+    today = date.today()
 
-        record = DemandPrediction(
-            hospital_id=int(prediction["hospital_id"]),
-            resource_id=int(prediction["resource_id"]),
-            prediction_date=pd.Timestamp.now().date(),
-            forecast_date=prediction["forecast_date"],
-            predicted_quantity=float(
-                prediction["predicted_quantity"]
-            ),
-            model_name=prediction["model_name"]
-        )
+    try:
 
-        db.add(record)
+        for prediction in predictions:
 
-    db.commit()
+            existing = (
+                db.query(DemandPrediction)
+                .filter(
+                    DemandPrediction.hospital_id
+                    == prediction["hospital_id"],
+                    DemandPrediction.resource_id
+                    == prediction["resource_id"],
+                    DemandPrediction.forecast_date
+                    == prediction["forecast_date"]
+                )
+                .first()
+            )
+
+            if existing:
+
+                existing.prediction_date = today
+                existing.predicted_quantity = (
+                    prediction["predicted_quantity"]
+                )
+                existing.model_name = prediction["model_name"]
+
+            else:
+
+                db.add(
+                    DemandPrediction(
+                        hospital_id=prediction["hospital_id"],
+                        resource_id=prediction["resource_id"],
+                        prediction_date=today,
+                        forecast_date=prediction["forecast_date"],
+                        predicted_quantity=prediction[
+                            "predicted_quantity"
+                        ],
+                        model_name=prediction["model_name"]
+                    )
+                )
+
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise
 
 
 def main():
+
+    print("\nLoading forecasting dataset...")
+
+    if not DATA_FILE.exists():
+        raise FileNotFoundError(DATA_FILE)
+
+    if not MODEL_FILE.exists():
+        raise FileNotFoundError(MODEL_FILE)
 
     data = pd.read_csv(DATA_FILE)
 
     package = joblib.load(MODEL_FILE)
 
-    model = package["model"]
-    features = package["features"]
-    model_name = package["model_name"]
+    print("Model:", package["model_name"])
+    print("Historical records:", len(data))
 
-    prepared = prepare_latest_features(data)
+    predictions = generate_forecasts(package, data)
 
-    prepared = prepared.dropna(
-        subset=features
-    )
-
-    latest = (
-        prepared
-        .groupby(
-            ["hospital_id", "resource_id"]
-        )
-        .tail(1)
-        .copy()
-    )
-
-    predictions = model.predict(
-        latest[features]
-    )
-
-    prediction_records = []
-
-    for (_, row), predicted_value in zip(
-        latest.iterrows(),
-        predictions
-    ):
-
-        forecast_date = (
-            row["date"] + pd.Timedelta(days=1)
-        ).date()
-
-        prediction_records.append({
-            "hospital_id": int(row["hospital_id"]),
-            "resource_id": int(row["resource_id"]),
-            "forecast_date": forecast_date,
-            "predicted_quantity": predicted_value,
-            "model_name": model_name
-        })
+    if not predictions:
+        print("No forecasts generated.")
+        return
 
     db = SessionLocal()
 
     try:
 
-        save_predictions(
-            prediction_records,
-            db
-        )
+        save_predictions(predictions, db)
 
-        print("\nPredictions saved to PostgreSQL.")
+        print("\nForecasts saved successfully!")
 
-        for prediction in prediction_records:
+        print("Total predictions:", len(predictions))
+
+        for prediction in predictions:
 
             print(
                 f"Hospital {prediction['hospital_id']} | "
                 f"Resource {prediction['resource_id']} | "
-                f"Forecast Date {prediction['forecast_date']} | "
-                f"Demand {prediction['predicted_quantity']:.2f} | "
-                f"Model {prediction['model_name']}"
+                f"Date {prediction['forecast_date']} | "
+                f"Demand {prediction['predicted_quantity']:.2f}"
             )
 
-    except Exception as e:
-
-        db.rollback()
-
-        print(
-            "Error saving predictions:",
-            e
-        )
-
     finally:
-
         db.close()
 
 

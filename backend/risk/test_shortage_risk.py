@@ -1,4 +1,4 @@
-from shortage_risk import calculate_shortage_risk
+from .shortage_risk import calculate_shortage_risk
 
 
 result = calculate_shortage_risk(

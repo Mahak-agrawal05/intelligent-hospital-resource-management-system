@@ -2,6 +2,8 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
+from pydantic import field_validator
+
 
 # =========================================================
 # 1. HOSPITAL
@@ -21,37 +23,54 @@ class HospitalCreate(BaseModel):
 # =========================================================
 
 class UserCreate(BaseModel):
-
     name: str
-
     email: str
-
-    password_hash: str
-
-    role: str
-
-    hospital_id: int
+    password: str
 
 
 # =========================================================
 # 3. RESOURCE
 # =========================================================
 
+
 class ResourceCreate(BaseModel):
-
     resource_name: str
-
     category: str
-
     unit: str
-
     supplier_id: int | None = None
-
     reorder_level: int = Field(ge=0)
-
     safety_stock: int = Field(ge=0)
-
     lead_time_days: int = Field(ge=0)
+    criticality: str = "MEDIUM"
+
+    @field_validator("criticality")
+    @classmethod
+    def validate_criticality(cls, value):
+        value = value.upper().strip()
+
+        if value not in ("HIGH", "MEDIUM", "LOW"):
+            raise ValueError(
+                "Criticality must be HIGH, MEDIUM, or LOW"
+            )
+
+        return value
+
+
+class ResourceBatchCreate(BaseModel):
+
+    inventory_id: int
+
+    batch_number: str
+
+    quantity: int = Field(ge=0)
+
+    reserved_quantity: int = Field(default=0, ge=0)
+
+    manufacturing_date: date | None = None
+
+    expiry_date: date
+
+    received_date: date | None = None
 
 
 # =========================================================
@@ -67,25 +86,6 @@ class InventoryCreate(BaseModel):
     current_quantity: int = Field(ge=0)
 
     reserved_quantity: int = Field(ge=0)
-
-
-# =========================================================
-# 5. RESOURCE BATCH
-# =========================================================
-
-class ResourceBatchCreate(BaseModel):
-
-    inventory_id: int
-
-    batch_number: str
-
-    quantity: int = Field(ge=0)
-
-    manufacturing_date: date | None = None
-
-    expiry_date: date
-
-    received_date: date | None = None
 
 
 # =========================================================
@@ -142,6 +142,20 @@ class EquipmentCreate(BaseModel):
 
     status: str
 
+    criticality: str = "MEDIUM"
+
+    @field_validator("criticality")
+    @classmethod
+    def validate_criticality(cls, value):
+        value = value.upper().strip()
+
+        if value not in ("URGENT", "HIGH", "MEDIUM", "LOW"):
+            raise ValueError(
+                "Criticality must be URGENT, HIGH, MEDIUM, or LOW"
+            )
+
+        return value
+
 
 # =========================================================
 # 9. MAINTENANCE RECORD
@@ -174,3 +188,24 @@ class MaintenanceRecordCreate(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+from datetime import date
+from pydantic import BaseModel, Field
+
+
+class ProcurementReceiptCreate(BaseModel):
+    batch_number: str = Field(..., min_length=1, max_length=100)
+    expiry_date: date
+    manufacturing_date: date | None = None
+    received_date: date | None = None
+
+from datetime import date
+from pydantic import BaseModel, Field
+
+
+class ProcurementReceiptCreate(BaseModel):
+    batch_number: str = Field(..., min_length=1, max_length=100)
+    expiry_date: date
+    manufacturing_date: date | None = None
+    received_date: date | None = None
