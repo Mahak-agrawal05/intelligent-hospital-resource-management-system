@@ -149,17 +149,67 @@ function App() {
     }
   }
 
-  // LOGOUT
-  function handleLogout() {
-    localStorage.removeItem("access_token");
+// LOGOUT
+function handleLogout() {
+  // Remove authentication token
+  localStorage.removeItem("access_token");
 
-    setIsLoggedIn(false);
-    setAlerts([]);
-    setAlertsError("");
-    setDashboardSummary(null);
-    setSummaryError("");
-    setPassword("");
-  }
+  // Reset authentication
+  setIsLoggedIn(false);
+  setActivePage("Dashboard");
+  setSearch("");
+  setPassword("");
+  setLoginError("");
+
+  // Clear dashboard data
+  setDashboardSummary(null);
+  setSummaryError("");
+  setSummaryLoading(false);
+
+  // Clear alerts
+  setAlerts([]);
+  setAlertsError("");
+  setAlertsLoading(false);
+
+  // Clear recommendations
+  setRecommendations([]);
+  setRecommendationsError("");
+  setRecommendationsLoading(false);
+  setRecommendationActionId(null);
+
+  // Clear inventory
+  setInventory([]);
+  setResources([]);
+  setBatches([]);
+  setInventoryError("");
+  setInventoryLoading(false);
+  setInventorySearch("");
+  setCategoryFilter("All");
+
+  // Clear optimization
+  setOptimizationData(null);
+  setOptimizationError("");
+  setOptimizationLoading(false);
+  setGenerationLoading(false);
+  setGenerationMessage("");
+
+  // Clear forecasts
+  setForecasts([]);
+  setForecastError("");
+  setForecastLoading(false);
+  setForecastModel("");
+
+  // Clear equipment
+  setEquipment([]);
+  setMaintenanceRecords([]);
+  setEquipmentError("");
+  setEquipmentLoading(false);
+
+  // Clear reports
+  setReportData(null);
+  setReportsError("");
+  setReportsLoading(false);
+}
 
   // FETCH DASHBOARD SUMMARY
   useEffect(() => {
@@ -950,13 +1000,18 @@ const expiredBatchCount = hospitalBatches.filter(
               <span>Administrator</span>
             </div>
 
-            <button
-              className="profile-menu"
-              onClick={handleLogout}
-              title="Logout"
-            >
-              ↪
-            </button>
+              <button
+                type="button"
+                className="profile-menu"
+                onClick={handleLogout}
+                title="Logout"
+                aria-label="Logout"
+              >
+                <span className="logout-icon" aria-hidden="true">
+                  ↪
+                </span>
+                <span>Logout</span>
+              </button>
           </div>
         </div>
       </aside>
